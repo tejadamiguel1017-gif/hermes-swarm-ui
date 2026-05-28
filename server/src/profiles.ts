@@ -39,9 +39,15 @@ function toDisplayName(id: string): string {
 }
 
 export function watchProfiles(onChange: (profiles: AgentProfile[]) => void): () => void {
-  fs.mkdirSync(PROFILES_DIR, { recursive: true });
-  const watcher = chokidar.watch(PROFILES_DIR, { depth: 0, ignoreInitial: true });
+  try { fs.mkdirSync(PROFILES_DIR, { recursive: true }); } catch { /* ok */ }
+  const watcher = chokidar.watch(PROFILES_DIR, {
+    depth: 0,
+    ignoreInitial: true,
+    usePolling: true,
+    interval: 2000,
+  });
   watcher.on('addDir', () => onChange(scanProfiles()));
   watcher.on('unlinkDir', () => onChange(scanProfiles()));
+  watcher.on('error', (err) => console.error('Profile watcher error:', err));
   return () => { watcher.close(); };
 }
