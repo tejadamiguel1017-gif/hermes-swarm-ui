@@ -1,8 +1,12 @@
+export type GatewayStatus = 'running' | 'stopped' | 'starting' | 'stopping';
+
 export interface AgentProfile {
   id: string;
   name: string;
   isCaptain: boolean;
   sessionId: string;
+  status: GatewayStatus;
+  authUrl?: string;
 }
 
 export type AgentStatus = 'idle' | 'thinking' | 'responding';
@@ -24,4 +28,5 @@ export type WSServerMessage =
   | { type: 'profiles'; profiles: AgentProfile[] }
   | { type: 'token'; profileId: string; content: string }
   | { type: 'done'; profileId: string }
-  | { type: 'error'; profileId: string; message: string };
+  | { type: 'error'; profileId: string; message: string }
+  | { type: 'profile_status'; profileId: string; status: GatewayStatus; authUrl?: string };

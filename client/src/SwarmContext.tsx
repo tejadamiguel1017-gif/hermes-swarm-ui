@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import type { AgentProfile, AgentStatus, ChatMessage, WSServerMessage } from './types';
+import type { AgentProfile, AgentStatus, ChatMessage, GatewayStatus, WSServerMessage } from './types';
 import { useWebSocket, type WSStatus } from './hooks/useWebSocket';
 
 interface SwarmState {
@@ -7,7 +7,12 @@ interface SwarmState {
   messages: Record<string, ChatMessage[]>;
   statuses: Record<string, AgentStatus>;
   wsStatus: WSStatus;
+  editorProfileId: string | null;
   sendMessage: (profileId: string, sessionId: string, text: string) => void;
+  startAgent: (profileId: string) => Promise<void>;
+  stopAgent: (profileId: string) => Promise<void>;
+  openEditor: (profileId: string) => void;
+  closeEditor: () => void;
 }
 
 const SwarmContext = createContext<SwarmState | null>(null);
@@ -16,13 +21,13 @@ export function SwarmProvider({ children }: { children: React.ReactNode }) {
   const [profiles, setProfiles] = useState<AgentProfile[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [statuses, setStatuses] = useState<Record<string, AgentStatus>>({});
+  const [editorProfileId, setEditorProfileId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
 
-  const addMessage = useCallback((profileId: string, msg: ChatMessage) => {
-    setMessages((prev) => ({
-      ...prev,
-      [profileId]: [...(prev[profileId] ?? []), msg],
-    }));
+  const updateProfileStatus = useCallback((profileId: string, status: GatewayStatus, authUrl?: string) => {
+    setProfiles(prev => prev.map(p =>
+      p.id === profileId ? { ...p, status, authUrl } : p
+    ));
   }, []);
 
   const appendToken = useCallback((profileId: string, content: string) => {
@@ -32,20 +37,12 @@ export function SwarmProvider({ children }: { children: React.ReactNode }) {
       if (!last || last.role !== 'agent' || !last.streaming) {
         return {
           ...prev,
-          [profileId]: [...list, {
-            id: String(++msgIdRef.current),
-            role: 'agent',
-            content,
-            streaming: true,
-          }],
+          [profileId]: [...list, { id: String(++msgIdRef.current), role: 'agent', content, streaming: true }],
         };
       }
       return {
         ...prev,
-        [profileId]: [
-          ...list.slice(0, -1),
-          { ...last, content: last.content + content },
-        ],
+        [profileId]: [...list.slice(0, -1), { ...last, content: last.content + content }],
       };
     });
   }, []);
@@ -55,12 +52,13 @@ export function SwarmProvider({ children }: { children: React.ReactNode }) {
       const list = prev[profileId] ?? [];
       const last = list[list.length - 1];
       if (!last?.streaming) return prev;
-      return {
-        ...prev,
-        [profileId]: [...list.slice(0, -1), { ...last, streaming: false }],
-      };
+      return { ...prev, [profileId]: [...list.slice(0, -1), { ...last, streaming: false }] };
     });
     setStatuses((prev) => ({ ...prev, [profileId]: 'idle' }));
+  }, []);
+
+  const addMessage = useCallback((profileId: string, msg: ChatMessage) => {
+    setMessages((prev) => ({ ...prev, [profileId]: [...(prev[profileId] ?? []), msg] }));
   }, []);
 
   const handleRaw = useCallback((raw: string) => {
@@ -70,6 +68,8 @@ export function SwarmProvider({ children }: { children: React.ReactNode }) {
 
     if (msg.type === 'profiles') {
       setProfiles(msg.profiles);
+    } else if (msg.type === 'profile_status') {
+      updateProfileStatus(msg.profileId, msg.status, msg.authUrl);
     } else if (msg.type === 'token') {
       setStatuses((prev) => ({ ...prev, [msg.profileId]: 'responding' }));
       appendToken(msg.profileId, msg.content);
@@ -84,26 +84,33 @@ export function SwarmProvider({ children }: { children: React.ReactNode }) {
       });
       setStatuses((prev) => ({ ...prev, [msg.profileId]: 'idle' }));
     }
-  }, [appendToken, finalizeStream, addMessage]);
+  }, [appendToken, finalizeStream, addMessage, updateProfileStatus]);
 
-  const { send, status: wsStatus } = useWebSocket(
-    `ws://${window.location.host}`,
-    handleRaw
-  );
+  const { send, status: wsStatus } = useWebSocket(`ws://${window.location.host}`, handleRaw);
 
   const sendMessage = useCallback((profileId: string, sessionId: string, text: string) => {
-    addMessage(profileId, {
-      id: String(++msgIdRef.current),
-      role: 'user',
-      content: text,
-      streaming: false,
-    });
+    addMessage(profileId, { id: String(++msgIdRef.current), role: 'user', content: text, streaming: false });
     setStatuses((prev) => ({ ...prev, [profileId]: 'thinking' }));
     send(JSON.stringify({ type: 'chat', profileId, sessionId, message: text }));
   }, [send, addMessage]);
 
+  const startAgent = useCallback(async (profileId: string) => {
+    updateProfileStatus(profileId, 'starting');
+    await fetch(`/api/profiles/${profileId}/start`, { method: 'POST' });
+  }, [updateProfileStatus]);
+
+  const stopAgent = useCallback(async (profileId: string) => {
+    updateProfileStatus(profileId, 'stopping');
+    await fetch(`/api/profiles/${profileId}/stop`, { method: 'POST' });
+  }, [updateProfileStatus]);
+
   return (
-    <SwarmContext.Provider value={{ profiles, messages, statuses, wsStatus, sendMessage }}>
+    <SwarmContext.Provider value={{
+      profiles, messages, statuses, wsStatus, editorProfileId,
+      sendMessage, startAgent, stopAgent,
+      openEditor: setEditorProfileId,
+      closeEditor: () => setEditorProfileId(null),
+    }}>
       {children}
     </SwarmContext.Provider>
   );
