@@ -34,7 +34,7 @@ describe('streamChat', () => {
     });
 
     const { streamChat } = await import('../src/chat.js');
-    await streamChat('ads', 'agent-ads', 'hi', mockWs);
+    await streamChat('ads', 'agent-ads', undefined, undefined, 'hi', mockWs);
 
     expect(mockSend).toHaveBeenCalledWith(
       JSON.stringify({ type: 'token', profileId: 'ads', content: 'Hello' })
@@ -51,7 +51,7 @@ describe('streamChat', () => {
     mockFetch.mockResolvedValue({ ok: false, status: 503, body: null });
 
     const { streamChat } = await import('../src/chat.js');
-    await streamChat('ads', 'agent-ads', 'hi', mockWs);
+    await streamChat('ads', 'agent-ads', undefined, undefined, 'hi', mockWs);
 
     expect(mockSend).toHaveBeenCalledWith(
       JSON.stringify({ type: 'error', profileId: 'ads', message: 'Hermes error: 503' })
@@ -65,7 +65,7 @@ describe('streamChat', () => {
     });
 
     const { streamChat } = await import('../src/chat.js');
-    await streamChat('ads', 'agent-ads', 'hello', mockWs);
+    await streamChat('ads', 'agent-ads', undefined, undefined, 'hello', mockWs);
 
     const [, options] = mockFetch.mock.calls[0];
     expect(options.headers['X-Hermes-Session-Id']).toBe('agent-ads');

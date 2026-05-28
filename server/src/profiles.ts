@@ -6,13 +6,23 @@ import type { AgentProfile } from './types.js';
 
 const HERMES_HOME = process.env.HERMES_HOME ?? path.join(os.homedir(), '.hermes');
 const PROFILES_DIR = process.env.HERMES_PROFILES_DIR ?? path.join(HERMES_HOME, 'profiles');
+const HERMES_URL = process.env.HERMES_URL ?? 'http://localhost:8642';
 
 const CAPTAIN: AgentProfile = {
   id: 'captain',
   name: 'Captain',
   isCaptain: true,
   sessionId: 'agent-captain',
+  url: HERMES_URL,
 };
+
+function readSoul(soulPath: string): string | undefined {
+  try {
+    return fs.readFileSync(soulPath, 'utf8').trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function scanProfiles(): AgentProfile[] {
   const profiles: AgentProfile[] = [CAPTAIN];
@@ -20,11 +30,14 @@ export function scanProfiles(): AgentProfile[] {
     const entries = fs.readdirSync(PROFILES_DIR, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
+        const profileDir = path.join(PROFILES_DIR, entry.name);
         profiles.push({
           id: entry.name,
           name: toDisplayName(entry.name),
           isCaptain: false,
           sessionId: `agent-${entry.name}`,
+          url: HERMES_URL,
+          soul: readSoul(path.join(profileDir, 'SOUL.md')),
         });
       }
     }

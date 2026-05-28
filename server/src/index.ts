@@ -25,7 +25,10 @@ app.get('*' as string, (_req, res) => {
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
+let currentProfiles = scanProfiles();
+
 const stopWatcher = watchProfiles((profiles) => {
+  currentProfiles = profiles;
   for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({ type: 'profiles', profiles }));
@@ -34,8 +37,7 @@ const stopWatcher = watchProfiles((profiles) => {
 });
 
 wss.on('connection', (ws) => {
-  // Send current profile list on connect
-  ws.send(JSON.stringify({ type: 'profiles', profiles: scanProfiles() }));
+  ws.send(JSON.stringify({ type: 'profiles', profiles: currentProfiles }));
 
   ws.on('message', async (raw) => {
     let msg: WSClientMessage;
@@ -46,7 +48,8 @@ wss.on('connection', (ws) => {
       return;
     }
     if (msg.type === 'chat') {
-      await streamChat(msg.profileId, msg.sessionId, msg.message, ws);
+      const profile = currentProfiles.find(p => p.id === msg.profileId);
+      await streamChat(msg.profileId, msg.sessionId, profile?.url, profile?.soul, msg.message, ws);
     }
   });
 });

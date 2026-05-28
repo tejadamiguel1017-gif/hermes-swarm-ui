@@ -3,6 +3,8 @@ export interface AgentProfile {
   name: string;
   isCaptain: boolean;
   sessionId: string;
+  url: string;
+  soul?: string;
 }
 
 export type WSClientMessage = {
