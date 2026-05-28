@@ -2,6 +2,7 @@ import type { WebSocket } from 'ws';
 import type { WSServerMessage } from './types.js';
 
 const HERMES_URL = process.env.HERMES_URL ?? 'http://localhost:8642';
+const HERMES_API_KEY = process.env.HERMES_API_KEY ?? '';
 
 export async function streamChat(
   profileId: string,
@@ -18,6 +19,7 @@ export async function streamChat(
       headers: {
         'Content-Type': 'application/json',
         'X-Hermes-Session-Id': sessionId,
+        ...(HERMES_API_KEY && { 'Authorization': `Bearer ${HERMES_API_KEY}` }),
       },
       body: JSON.stringify({
         model: 'hermes',

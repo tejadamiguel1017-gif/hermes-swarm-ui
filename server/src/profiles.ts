@@ -5,7 +5,7 @@ import chokidar from 'chokidar';
 import type { AgentProfile } from './types.js';
 
 const HERMES_HOME = process.env.HERMES_HOME ?? path.join(os.homedir(), '.hermes');
-const PROFILES_DIR = path.join(HERMES_HOME, 'profiles');
+const PROFILES_DIR = process.env.HERMES_PROFILES_DIR ?? path.join(HERMES_HOME, 'profiles');
 
 const CAPTAIN: AgentProfile = {
   id: 'captain',
